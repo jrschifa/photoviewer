@@ -1,1 +1,9 @@
-.DS_Store
+#OS junk files
+Thumbs.db
+*.DS_Store
+
+.vscode/
+.idea/
+*.iml
+*.patch
+*.swp
