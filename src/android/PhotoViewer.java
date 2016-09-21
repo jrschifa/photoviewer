@@ -25,13 +25,26 @@ public class PhotoViewer extends CordovaPlugin {
 
     public static final int REQ_CODE = 0;
 
-    protected JSONArray args;
+    private static final String ACTION_SHOW = "show";
+
+    private String url;
+    private String title;
+    private String subtitle;
+    private int maxWidth;
+    private int maxHeight;
+    private JSONArray menu;
     protected CallbackContext callbackContext;
 
     @Override
     public boolean execute(String action, JSONArray args, CallbackContext callbackContext) throws JSONException {
-        if (action.equals("show")) {
-            this.args = args;
+        if (action.equals(ACTION_SHOW)) {
+            this.url = args.getString(0);
+            this.title = args.getString(1);
+            this.subtitle = args.getString(2);
+            this.maxWidth = args.getInt(3);
+            this.maxHeight = args.getInt(4);
+            this.menu = args.getJSONArray(5);
+
             this.callbackContext = callbackContext;
 
             if (cordova.hasPermission(READ) && cordova.hasPermission(WRITE)) {
@@ -51,17 +64,19 @@ public class PhotoViewer extends CordovaPlugin {
     protected void launchActivity() throws JSONException {
         Intent i = new Intent(this.cordova.getActivity(), com.sarriaroman.PhotoViewer.PhotoActivity.class);
 
-        i.putExtra("url", this.args.getString(0));
-        i.putExtra("title", this.args.getString(1));
-        i.putExtra("options", this.args.optJSONObject(2).toString());
+        i.putExtra("url", this.url);
+        i.putExtra("title", this.title);
+        i.putExtra("subtitle", this.subtitle);
+        i.putExtra("maxWidth", this.maxWidth);
+        i.putExtra("maxHeight", this.maxHeight);
+        i.putExtra("menu", this.menu.toString());
 
         this.cordova.getActivity().startActivity(i);
         this.callbackContext.success("");
     }
 
     @Override
-    public void onRequestPermissionResult(int requestCode, String[] permissions,
-                                          int[] grantResults) throws JSONException {
+    public void onRequestPermissionResult(int requestCode, String[] permissions, int[] grantResults) throws JSONException {
         for(int r:grantResults) {
             if(r == PackageManager.PERMISSION_DENIED) {
                 this.callbackContext.sendPluginResult(new PluginResult(PluginResult.Status.ERROR, PERMISSION_DENIED_ERROR));

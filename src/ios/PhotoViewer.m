@@ -55,8 +55,8 @@
     
     
     CDVPluginResult* pluginResult = nil;
-    NSString* url = [command.arguments objectAtIndex:0];
-    NSString* title = [command.arguments objectAtIndex:1];
+    NSString* url = [command argumentAtIndex:0 withDefault:nil];
+    NSString* title = [command argumentAtIndex:1 withDefault:nil];
 
     if (url != nil && [url length] > 0) {
         [self.commandDelegate runInBackground:^{

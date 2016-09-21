@@ -2,44 +2,77 @@ package com.sarriaroman.PhotoViewer;
 
 import uk.co.senab.photoview.PhotoViewAttacher;
 import android.app.Activity;
+import android.app.Application;
+import android.content.ClipData;
+import android.content.ClipboardManager;
+import android.content.Context;
+import android.content.Intent;
+import android.content.res.Resources;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.drawable.BitmapDrawable;
 import android.graphics.drawable.Drawable;
+import android.net.Uri;
 import android.os.Bundle;
 import android.os.Environment;
+import android.support.v4.content.FileProvider;
+import android.support.v7.app.AppCompatActivity;
+import android.support.v7.widget.Toolbar;
+import android.text.Html;
+import android.util.ArrayMap;
 import android.util.Base64;
+import android.util.Log;
+import android.view.Menu;
+import android.view.MenuItem;
 import android.view.View;
-import android.widget.ImageButton;
 import android.widget.ImageView;
-
-import android.content.Intent;
-import android.net.Uri;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import com.squareup.picasso.MemoryPolicy;
 import com.squareup.picasso.Picasso;
 
+import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
 import java.io.File;
+import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 
-public class PhotoActivity extends Activity {
+public class PhotoActivity extends AppCompatActivity {
+	private static final int ACTION_NONE = 0;
+	private static final int ACTION_DOWNLOAD = 1;
+	private static final int ACTION_SHARE = 2;
+	private static final int ACTION_COPY_LINK = 3;
+	private static final int ACTION_COPY_DATA = 4;
+
+	private static final ArrayMap<Integer, String> iconMap = new ArrayMap<Integer, String>();
+	static {
+		iconMap.put(ACTION_DOWNLOAD, "ic_file_download_white");
+		iconMap.put(ACTION_SHARE, "ic_share_white");
+		iconMap.put(ACTION_COPY_LINK, "ic_link_white");
+		iconMap.put(ACTION_COPY_DATA, "ic_content_copy_white");
+	}
+
+	private static final int MAX_WIDTH = 1024;
+	private static final int MAX_HEIGHT = 768;
+
 	private PhotoViewAttacher mAttacher;
-
 	private ImageView photo;
+	private Toolbar toolbar;
+	private TextView subTitle;
+
 	private String imageUrl;
+	private JSONArray menuItems;
+	private String titleText;
+	private String subTitleText;
+	private int maxWidth;
+	private int maxHeight;
 
-	private ImageButton closeBtn;
-	private ImageButton shareBtn;
-
-	private TextView titleTxt;
-
-	private JSONObject options;
-	private int shareBtnVisibility;
+	private static final String FILE_PROVIDER_PACKAGE_ID = "com.sarriaroman.PhotoViewer.fileprovider";
+	private static final String TAG = "PhotoActivity";
 
 	@Override
 	protected void onCreate(Bundle savedInstanceState) {
@@ -47,50 +80,138 @@ public class PhotoActivity extends Activity {
 
 		setContentView(getApplication().getResources().getIdentifier("activity_photo", "layout", getApplication().getPackageName()));
 
+		Intent intent = this.getIntent();
+
+		imageUrl = intent.getStringExtra("url");
+		titleText = intent.getStringExtra("title");
+		subTitleText = intent.getStringExtra("subtitle");
+		maxWidth = intent.getIntExtra("maxWidth", 0);
+		maxHeight = intent.getIntExtra("maxHeight", 0);
+		String menuArray = intent.getStringExtra("menu");
+
+		try {
+			menuItems = new JSONArray(menuArray);
+		} catch (JSONException e) {
+			e.printStackTrace();
+			menuItems = new JSONArray();
+		}
+
 		// Load the Views
 		findViews();
 
-		try {
-			options = new JSONObject(this.getIntent().getStringExtra("options"));
-			shareBtnVisibility = options.getBoolean("share") ? View.VISIBLE : View.INVISIBLE;
-		} catch(JSONException exception) {
-			shareBtnVisibility = View.VISIBLE;
-		}
-		shareBtn.setVisibility(shareBtnVisibility);
-
-		// Change the Activity Title
-		String actTitle = this.getIntent().getStringExtra("title");
-		if( !actTitle.equals("") ) {
-			titleTxt.setText(actTitle);
-		}
-
-		imageUrl = this.getIntent().getStringExtra("url");
-
-		// Set Button Listeners
-		closeBtn.setOnClickListener(new View.OnClickListener() {
-			@Override
-			public void onClick(View v) {
-				finish();
-			}
-		});
-
-		shareBtn.setOnClickListener(new View.OnClickListener() {
-			@Override
-			public void onClick(View v) {
-				Uri bmpUri = getLocalBitmapUri(photo);
-
-				if (bmpUri != null) {
-				    Intent sharingIntent = new Intent(Intent.ACTION_SEND);
-
-				    sharingIntent.setType("image/*");
-				    sharingIntent.putExtra(Intent.EXTRA_STREAM, bmpUri);
-
-				    startActivity(Intent.createChooser(sharingIntent, "Share"));
-				}
-			}
-		});
-
 		loadImage();
+	}
+
+	@Override
+	public boolean onCreateOptionsMenu(Menu menu) {
+		super.onCreateOptionsMenu(menu);
+
+		Application application = getApplication();
+		Resources resources = application.getResources();
+		String packageName = application.getPackageName();
+
+		for (int i = 0; i < menuItems.length(); i++) {
+			JSONObject menuItem = menuItems.optJSONObject(i);
+			MenuItem item = menu.add(Menu.NONE, i, Menu.NONE, menuItem.optString("title"));
+			String iconPath = menuItem.optString("icon");
+			if (!iconPath.isEmpty()) {
+				try {
+					item.setIcon(Drawable.createFromStream(getAssets().open(iconPath), null));
+				} catch (IOException e) {
+					Log.e(TAG, "icon from asset drawable", e);
+				}
+			} else {
+				String icon = this.iconMap.get(menuItem.optInt("action"));
+				item.setIcon(resources.getIdentifier(icon, "id", packageName));
+			}
+
+			item.setShowAsAction(menuItem.optInt("showAs"));
+		}
+
+		return true;
+	}
+
+	@Override
+	public boolean onOptionsItemSelected(MenuItem item) {
+		int itemId = item.getItemId();
+
+		try {
+			JSONObject currentItem = menuItems.getJSONObject(itemId);
+			int action = currentItem.getInt("action");
+
+			if (action == this.ACTION_DOWNLOAD) {
+				this.onDownloadAction(currentItem);
+			} else if (action == this.ACTION_SHARE) {
+				this.onShareAction(currentItem);
+			} else if (action == this.ACTION_COPY_LINK) {
+				this.onCopyLinkAction(currentItem);
+			} else if (action == this.ACTION_COPY_DATA) {
+				this.onCopyDataAction(currentItem);
+			}
+		} catch (JSONException e) {
+			Log.e(TAG, "Error: ", e);
+		}
+
+		return super.onOptionsItemSelected(item);
+	}
+
+	private void onCopyDataAction(JSONObject menuItem) {
+		Bitmap bmp = this.getLocalBitmap(photo);
+
+		if (bmp != null) {
+			File path = this.getApplicationContext().getCacheDir();
+			File file = writeFileToPath(path, bmp);
+			Uri uri = FileProvider.getUriForFile(this.getApplicationContext(), FILE_PROVIDER_PACKAGE_ID, file);
+
+			ClipboardManager clipboard = (ClipboardManager) getActivity().getSystemService(Context.CLIPBOARD_SERVICE);
+			ClipData clip = ClipData.newUri(getContentResolver(), file.getName(), uri);
+			clipboard.setPrimaryClip(clip);
+
+			Toast.makeText(getActivity(), "Copied", Toast.LENGTH_LONG).show();
+		}
+	}
+
+	private void onCopyLinkAction(JSONObject menuItem) {
+		ClipboardManager clipboard = (ClipboardManager) getActivity().getSystemService(Context.CLIPBOARD_SERVICE);
+		ClipData clip = ClipData.newPlainText(imageUrl, imageUrl);
+		clipboard.setPrimaryClip(clip);
+
+		Toast.makeText(getActivity(), "Copied", Toast.LENGTH_LONG).show();
+	}
+
+	private void onShareAction(JSONObject menuItem) {
+		Bitmap bmp = this.getLocalBitmap(photo);
+
+		if (bmp != null) {
+			File path = this.getApplicationContext().getCacheDir();
+			File file = writeFileToPath(path, bmp);
+
+			Intent intent = new Intent(Intent.ACTION_SEND);
+
+			Uri uri = FileProvider.getUriForFile(this.getApplicationContext(), FILE_PROVIDER_PACKAGE_ID, file);
+
+			intent.putExtra(Intent.EXTRA_STREAM, uri);
+			intent.setType("image/*");
+			intent.setFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+
+			String title = menuItem.optString("title", "Share");
+			startActivity(Intent.createChooser(intent, title));
+		}
+	}
+
+	private void onDownloadAction(JSONObject menuItem) {
+		Bitmap bmp = getLocalBitmap(photo);
+
+		if (bmp != null) {
+			File path = Environment.getExternalStoragePublicDirectory(
+					Environment.DIRECTORY_DOWNLOADS);
+			File file = this.writeFileToPath(path, bmp);
+
+			Intent intent = new Intent(Intent.ACTION_MEDIA_SCANNER_SCAN_FILE, Uri.fromFile(file));
+			getApplication().getApplicationContext().sendBroadcast(intent);
+
+			Toast.makeText(getActivity(), "Download Completed", Toast.LENGTH_LONG).show();
+		}
 	}
 
 	/**
@@ -98,16 +219,22 @@ public class PhotoActivity extends Activity {
 	 *
 	 */
 	private void findViews() {
-		// Buttons first
-		closeBtn = (ImageButton) findViewById( getApplication().getResources().getIdentifier("closeBtn", "id", getApplication().getPackageName()) );
-		shareBtn = (ImageButton) findViewById( getApplication().getResources().getIdentifier("shareBtn", "id", getApplication().getPackageName()) );
+		Application application = getApplication();
+		Resources resources = application.getResources();
+		String packageName = application.getPackageName();
 
 		// Photo Container
-		photo = (ImageView) findViewById( getApplication().getResources().getIdentifier("photoView", "id", getApplication().getPackageName()) );
+		photo = (ImageView) findViewById( resources.getIdentifier("photoView", "id", packageName) );
 		mAttacher = new PhotoViewAttacher(photo);
 
-		// Title TextView
-		titleTxt = (TextView) findViewById( getApplication().getResources().getIdentifier("titleTxt", "id", getApplication().getPackageName()) );
+		// ToolBar
+		toolbar = (Toolbar) findViewById( resources.getIdentifier("toolbar", "id", packageName) ); // Attaching the layout to the toolbar object
+		setSupportActionBar(toolbar);
+		getSupportActionBar().setTitle(titleText);
+
+		// SubTitle
+		subTitle = (TextView) findViewById( resources.getIdentifier("subtitleView", "id", packageName) );
+		subTitle.setText(Html.fromHtml(this.subTitleText));
 	}
 
 	/**
@@ -124,9 +251,6 @@ public class PhotoActivity extends Activity {
 	 */
 	private void hideLoadingAndUpdate() {
 		photo.setVisibility(View.VISIBLE);
-
-        shareBtn.setVisibility(shareBtnVisibility);
-
 		mAttacher.update();
 	}
 
@@ -136,8 +260,16 @@ public class PhotoActivity extends Activity {
 	 */
 	private void loadImage() {
 		if( imageUrl.startsWith("http") ) {
-		Picasso.with(this)
+			int width = (maxWidth != 0) ? maxWidth : MAX_WIDTH;
+			int height = (maxHeight != 0) ? maxHeight : MAX_HEIGHT;
+			int size = (int) Math.ceil(Math.sqrt(width * height));
+
+			Picasso.with(this)
 				.load(imageUrl)
+				.transform(new BitmapTransform(MAX_WIDTH, MAX_HEIGHT))
+				.memoryPolicy(MemoryPolicy.NO_CACHE, MemoryPolicy.NO_STORE)
+				.resize(size, size)
+				.centerInside()
 				.into(photo, new com.squareup.picasso.Callback() {
 					@Override
 					public void onSuccess() {
@@ -151,7 +283,7 @@ public class PhotoActivity extends Activity {
 						finish();
 					}
 				});
-	} else if ( imageUrl.startsWith("data:image")){
+		} else if ( imageUrl.startsWith("data:image")){
             String base64String = imageUrl.substring(imageUrl.indexOf(",")+1);
             byte[] decodedString = Base64.decode(base64String, Base64.DEFAULT);
             Bitmap decodedByte = BitmapFactory.decodeByteArray(decodedString, 0, decodedString.length);
@@ -165,42 +297,37 @@ public class PhotoActivity extends Activity {
         }
 	}
 
-	/**
-	 * Create Local Image due to Restrictions
-	 *
-	 * @param imageView
-	 *
-	 * @return
-	 */
-	public Uri getLocalBitmapUri(ImageView imageView) {
-		Drawable drawable = imageView.getDrawable();
-		Bitmap bmp = null;
-
-		if (drawable instanceof BitmapDrawable){
-			bmp = ((BitmapDrawable) imageView.getDrawable()).getBitmap();
-		} else {
-			return null;
-		}
-
-		// Store image to default external storage directory
-		Uri bmpUri = null;
+	private File writeFileToPath(File path, Bitmap bmp) {
 		try {
-			File file =  new File(
-					Environment.getExternalStoragePublicDirectory(
-						Environment.DIRECTORY_DOWNLOADS
-					), "share_image_" + System.currentTimeMillis() + ".png");
+			File file = new File(path, this.getFileName());
 
-			file.getParentFile().mkdirs();
+			path.mkdirs();
 
 			FileOutputStream out = new FileOutputStream(file);
 			bmp.compress(Bitmap.CompressFormat.PNG, 90, out);
 			out.close();
 
-			bmpUri = Uri.fromFile(file);
+			return file;
+		} catch(FileNotFoundException e) {
+			Log.e(TAG, "File not found: ", e);
 		} catch (IOException e) {
-			e.printStackTrace();
+			Log.e(TAG, "IO: ", e);
 		}
-		return bmpUri;
+
+		return null;
 	}
 
+	private String getFileName() {
+		return "share_image_" + System.currentTimeMillis() + ".png";
+	}
+
+	private Bitmap getLocalBitmap(ImageView imageView) {
+		Drawable drawable = imageView.getDrawable();
+
+		if (drawable instanceof BitmapDrawable){
+			return ((BitmapDrawable) imageView.getDrawable()).getBitmap();
+		}
+
+		return null;
+	}
 }
