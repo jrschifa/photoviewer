@@ -1,19 +1,9 @@
 /********* PhotoViewer.m Cordova Plugin Implementation *******/
 
-#import <Cordova/CDV.h>
+#import "PhotoViewer.h"
 #import <Foundation/Foundation.h>
 #import <UIKit/UIKit.h>
 #import <MobileCoreServices/MobileCoreServices.h>
-
-@interface PhotoViewer : CDVPlugin <UIDocumentInteractionControllerDelegate> {
-  // Member variables go here.
-}
-
-@property (nonatomic, strong) UIDocumentInteractionController *docInteractionController;
-@property (nonatomic, strong) NSMutableArray *documentURLs;
-
-- (void)show:(CDVInvokedUrlCommand*)command;
-@end
 
 @implementation PhotoViewer
 
