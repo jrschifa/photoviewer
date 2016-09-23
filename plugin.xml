@@ -42,27 +42,22 @@
 		<source-file src="src/android/res/layout/activity_photo.xml" target-dir="res/layout" />
         <source-file src="src/android/res/xml/provider_paths.xml" target-dir="res/xml" />
 
-        <resource-file src="src/android/res/drawable-hdpi/ic_content_copy_white.png" target="res/drawable-hdpi/ic_content_copy_white.png" />
         <resource-file src="src/android/res/drawable-hdpi/ic_file_download_white.png" target="res/drawable-hdpi/ic_file_download_white.png" />
         <resource-file src="src/android/res/drawable-hdpi/ic_link_white.png" target="res/drawable-hdpi/ic_link_white.png" />
         <resource-file src="src/android/res/drawable-hdpi/ic_share_white.png" target="res/drawable-hdpi/ic_share_white.png" />
 
-        <resource-file src="src/android/res/drawable-mdpi/ic_content_copy_white.png" target="res/drawable-mdpi/ic_content_copy_white.png" />
         <resource-file src="src/android/res/drawable-mdpi/ic_file_download_white.png" target="res/drawable-mdpi/ic_file_download_white.png" />
         <resource-file src="src/android/res/drawable-mdpi/ic_link_white.png" target="res/drawable-mdpi/ic_link_white.png" />
         <resource-file src="src/android/res/drawable-mdpi/ic_share_white.png" target="res/drawable-mdpi/ic_share_white.png" />
 
-        <resource-file src="src/android/res/drawable-xhdpi/ic_content_copy_white.png" target="res/drawable-xhdpi/ic_content_copy_white.png" />
         <resource-file src="src/android/res/drawable-xhdpi/ic_file_download_white.png" target="res/drawable-xhdpi/ic_file_download_white.png" />
         <resource-file src="src/android/res/drawable-xhdpi/ic_link_white.png" target="res/drawable-xhdpi/ic_link_white.png" />
         <resource-file src="src/android/res/drawable-xhdpi/ic_share_white.png" target="res/drawable-xhdpi/ic_share_white.png" />
 
-        <resource-file src="src/android/res/drawable-xxhdpi/ic_content_copy_white.png" target="res/drawable-xxhdpi/ic_content_copy_white.png" />
         <resource-file src="src/android/res/drawable-xxhdpi/ic_file_download_white.png" target="res/drawable-xxhdpi/ic_file_download_white.png" />
         <resource-file src="src/android/res/drawable-xxhdpi/ic_link_white.png" target="res/drawable-xxhdpi/ic_link_white.png" />
         <resource-file src="src/android/res/drawable-xxhdpi/ic_share_white.png" target="res/drawable-xxhdpi/ic_share_white.png" />
 
-        <resource-file src="src/android/res/drawable-xxxhdpi/ic_content_copy_white.png" target="res/drawable-xxxhdpi/ic_content_copy_white.png" />
         <resource-file src="src/android/res/drawable-xxxhdpi/ic_file_download_white.png" target="res/drawable-xxxhdpi/ic_file_download_white.png" />
         <resource-file src="src/android/res/drawable-xxxhdpi/ic_link_white.png" target="res/drawable-xxxhdpi/ic_link_white.png" />
         <resource-file src="src/android/res/drawable-xxxhdpi/ic_share_white.png" target="res/drawable-xxxhdpi/ic_share_white.png" />

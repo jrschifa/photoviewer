@@ -46,14 +46,12 @@ public class PhotoActivity extends AppCompatActivity {
 	private static final int ACTION_DOWNLOAD = 1;
 	private static final int ACTION_SHARE = 2;
 	private static final int ACTION_COPY_LINK = 3;
-	private static final int ACTION_COPY_DATA = 4;
 
 	private static final ArrayMap<Integer, String> iconMap = new ArrayMap<Integer, String>();
 	static {
 		iconMap.put(ACTION_DOWNLOAD, "ic_file_download_white");
 		iconMap.put(ACTION_SHARE, "ic_share_white");
 		iconMap.put(ACTION_COPY_LINK, "ic_link_white");
-		iconMap.put(ACTION_COPY_DATA, "ic_content_copy_white");
 	}
 
 	private static final int MAX_WIDTH = 1024;
@@ -145,30 +143,12 @@ public class PhotoActivity extends AppCompatActivity {
 				this.onShareAction(currentItem);
 			} else if (action == this.ACTION_COPY_LINK) {
 				this.onCopyLinkAction(currentItem);
-			} else if (action == this.ACTION_COPY_DATA) {
-				this.onCopyDataAction(currentItem);
 			}
 		} catch (JSONException e) {
 			Log.e(TAG, "Error: ", e);
 		}
 
 		return super.onOptionsItemSelected(item);
-	}
-
-	private void onCopyDataAction(JSONObject menuItem) {
-		Bitmap bmp = this.getLocalBitmap(photo);
-
-		if (bmp != null) {
-			File path = this.getApplicationContext().getCacheDir();
-			File file = writeFileToPath(path, bmp);
-			Uri uri = FileProvider.getUriForFile(this.getApplicationContext(), FILE_PROVIDER_PACKAGE_ID, file);
-
-			ClipboardManager clipboard = (ClipboardManager) getActivity().getSystemService(Context.CLIPBOARD_SERVICE);
-			ClipData clip = ClipData.newUri(getContentResolver(), file.getName(), uri);
-			clipboard.setPrimaryClip(clip);
-
-			Toast.makeText(getActivity(), "Copied", Toast.LENGTH_LONG).show();
-		}
 	}
 
 	private void onCopyLinkAction(JSONObject menuItem) {
