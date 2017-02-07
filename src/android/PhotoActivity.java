@@ -246,7 +246,7 @@ public class PhotoActivity extends AppCompatActivity {
 
 			Picasso.with(this)
 				.load(imageUrl)
-				.transform(new BitmapTransform(MAX_WIDTH, MAX_HEIGHT))
+				.transform(new BitmapTransform(width, height))
 				.memoryPolicy(MemoryPolicy.NO_CACHE, MemoryPolicy.NO_STORE)
 				.resize(size, size)
 				.centerInside()

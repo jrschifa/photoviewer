@@ -19,11 +19,11 @@ public class BitmapTransform implements Transformation {
         double aspectRatio;
 
         if (source.getWidth() > source.getHeight()) {
-            targetWidth = maxWidth;
+            targetWidth = (source.getWidth() > maxWidth) ? maxWidth : source.getWidth();
             aspectRatio = (double) source.getHeight() / (double) source.getWidth();
             targetHeight = (int) (targetWidth * aspectRatio);
         } else {
-            targetHeight = maxHeight;
+            targetHeight = (source.getHeight() > maxHeight) ? maxHeight : source.getHeight();
             aspectRatio = (double) source.getWidth() / (double) source.getHeight();
             targetWidth = (int) (targetHeight * aspectRatio);
         }
