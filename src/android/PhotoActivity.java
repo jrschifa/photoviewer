@@ -55,7 +55,7 @@ public class PhotoActivity extends AppCompatActivity {
 	}
 
 	private static final int MAX_WIDTH = 1024;
-	private static final int MAX_HEIGHT = 768;
+	private static final int MAX_HEIGHT = 1024;
 
 	private PhotoViewAttacher mAttacher;
 	private ImageView photo;
