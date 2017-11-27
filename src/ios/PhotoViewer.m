@@ -108,7 +108,7 @@
         case 0x47:
             return @"gif";
         case 0x42:
- +          return @"bmp";
+            return @"bmp";
         case 0x49:
         case 0x4D:
             return @"tiff";
