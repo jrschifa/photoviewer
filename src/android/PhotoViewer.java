@@ -50,7 +50,7 @@ public class PhotoViewer extends CordovaPlugin {
 
             boolean requiresExternalPermission = true;
             try {
-                JSONObject options = this.args.optJSONObject(2);
+                JSONObject options = args.optJSONObject(2);
                 requiresExternalPermission = options.getBoolean("share");
             } catch(JSONException exception) { }
 
