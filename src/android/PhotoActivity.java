@@ -239,7 +239,7 @@ public class PhotoActivity extends AppCompatActivity {
 	 *
 	 */
 	private void loadImage() {
-		if( imageUrl.startsWith("http") ) {
+		if( imageUrl.startsWith("http") || imageUrl.startsWith("file") ) {
 			int width = (maxWidth != 0) ? maxWidth : MAX_WIDTH;
 			int height = (maxHeight != 0) ? maxHeight : MAX_HEIGHT;
 			int size = (int) Math.ceil(Math.sqrt(width * height));
