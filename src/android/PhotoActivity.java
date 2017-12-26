@@ -32,6 +32,7 @@ import android.widget.Toast;
 import com.squareup.picasso.MemoryPolicy;
 import com.squareup.picasso.Picasso;
 
+import org.apache.cordova.BuildHelper;
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -69,12 +70,14 @@ public class PhotoActivity extends AppCompatActivity {
 	private int maxWidth;
 	private int maxHeight;
 
-	private static final String FILE_PROVIDER_PACKAGE_ID = "com.sarriaroman.PhotoViewer.fileprovider";
+	private String applicationId;
 	private static final String TAG = "PhotoActivity";
 
 	@Override
 	protected void onCreate(Bundle savedInstanceState) {
 		super.onCreate(savedInstanceState);
+
+		this.applicationId = (String) BuildHelper.getBuildConfigValue(this, "APPLICATION_ID");
 
 		setContentView(getApplication().getResources().getIdentifier("activity_photo", "layout", getApplication().getPackageName()));
 
@@ -168,7 +171,7 @@ public class PhotoActivity extends AppCompatActivity {
 
 			Intent intent = new Intent(Intent.ACTION_SEND);
 
-			Uri uri = FileProvider.getUriForFile(this.getApplicationContext(), FILE_PROVIDER_PACKAGE_ID, file);
+			Uri uri = FileProvider.getUriForFile(this.getApplicationContext(), this.applicationId + ".provider", file);
 
 			intent.putExtra(Intent.EXTRA_STREAM, uri);
 			intent.setType("image/*");
