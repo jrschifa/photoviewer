@@ -28,25 +28,25 @@
 			<uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
         </config-file>
 
-		<edit-config file="AndroidManifest.xml" target="application/provider" mode="merge">
+		<config-file target="AndroidManifest.xml" parent="application">
             <provider 
-                android:name="android.support.v4.content.FileProvider"
-                android:authorities="${applicationId}.provider"
+                android:name="com.sarriaroman.photoviewer.FileProvider"
+                android:authorities="com.sarriaroman.photoviewer.provider"
                 android:exported="false"
                 android:grantUriPermissions="true"
             >
                 <meta-data 
                     android:name="android.support.FILE_PROVIDER_PATHS"
-                    android:resource="@xml/provider_paths" 
+                    android:resource="@xml/photoviewer_paths" 
                 />
             </provider>
-        </edit-config>
+        </config-file>
 
 		<source-file src="src/android/PhotoViewer.java" target-dir="src/com/sarriaroman/PhotoViewer" />
 		<source-file src="src/android/PhotoActivity.java" target-dir="src/com/sarriaroman/PhotoViewer" />
         <source-file src="src/android/BitmapTransform.java" target-dir="src/com/sarriaroman/PhotoViewer" />
-		<source-file src="src/android/res/layout/activity_photo.xml" target-dir="res/layout" />
-        <source-file src="src/android/res/xml/provider_paths.xml" target-dir="res/xml" />
+		<source-file src="src/android/res/layout/photoviewer_photo.xml" target-dir="res/layout" />
+        <source-file src="src/android/res/xml/photoviewer_paths.xml" target-dir="res/xml" />
 
         <resource-file src="src/android/res/drawable-hdpi/ic_file_download_white.png" target="res/drawable-hdpi/ic_file_download_white.png" />
         <resource-file src="src/android/res/drawable-hdpi/ic_link_white.png" target="res/drawable-hdpi/ic_link_white.png" />
