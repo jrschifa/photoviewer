@@ -30,8 +30,8 @@
 
 		<config-file target="AndroidManifest.xml" parent="application">
             <provider 
-                android:name="com.sarriaroman.photoviewer.FileProvider"
-                android:authorities="com.sarriaroman.photoviewer.provider"
+                android:name="com.sarriaroman.PhotoViewer.PhotoFileProvider"
+                android:authorities="com.sarriaroman.PhotoViewer.provider"
                 android:exported="false"
                 android:grantUriPermissions="true"
             >
@@ -44,6 +44,7 @@
 
 		<source-file src="src/android/PhotoViewer.java" target-dir="src/com/sarriaroman/PhotoViewer" />
 		<source-file src="src/android/PhotoActivity.java" target-dir="src/com/sarriaroman/PhotoViewer" />
+        <source-file src="src/android/PhotoFileProvider.java" target-dir="src/com/sarriaroman/PhotoViewer" />
         <source-file src="src/android/BitmapTransform.java" target-dir="src/com/sarriaroman/PhotoViewer" />
 		<source-file src="src/android/res/layout/photoviewer_photo.xml" target-dir="res/layout" />
         <source-file src="src/android/res/xml/photoviewer_paths.xml" target-dir="res/xml" />
