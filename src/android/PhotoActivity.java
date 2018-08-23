@@ -79,7 +79,7 @@ public class PhotoActivity extends AppCompatActivity {
 
 		this.applicationId = (String) BuildHelper.getBuildConfigValue(this, "APPLICATION_ID");
 
-		setContentView(getApplication().getResources().getIdentifier("activity_photo", "layout", getApplication().getPackageName()));
+		setContentView(getApplication().getResources().getIdentifier("photoviewer_photo", "layout", getApplication().getPackageName()));
 
 		Intent intent = this.getIntent();
 
