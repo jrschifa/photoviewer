@@ -69,6 +69,8 @@
         <resource-file src="src/android/res/drawable-xxxhdpi/ic_link_white.png" target="res/drawable-xxxhdpi/ic_link_white.png" />
         <resource-file src="src/android/res/drawable-xxxhdpi/ic_share_white.png" target="res/drawable-xxxhdpi/ic_share_white.png" />
 
+        <framework src="com.android.support:support-v4:27+"/>
+        <framework src="com.android.support:appcompat-v7:27+"/>
         <framework src="src/android/photoviewer.gradle" custom="true" type="gradleReference" />
 	</platform>
 
