@@ -1,6 +1,5 @@
 package com.sarriaroman.PhotoViewer;
 
-import uk.co.senab.photoview.PhotoViewAttacher;
 import android.app.Activity;
 import android.app.Application;
 import android.content.ClipData;
@@ -13,6 +12,7 @@ import android.graphics.BitmapFactory;
 import android.graphics.drawable.BitmapDrawable;
 import android.graphics.drawable.Drawable;
 import android.net.Uri;
+import android.os.AsyncTask;
 import android.os.Bundle;
 import android.os.Environment;
 import android.support.v4.content.FileProvider;
@@ -20,6 +20,7 @@ import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.Toolbar;
 import android.text.Html;
 import android.util.ArrayMap;
+
 import android.util.Base64;
 import android.util.Log;
 import android.view.Menu;
@@ -31,6 +32,8 @@ import android.widget.Toast;
 
 import com.squareup.picasso.MemoryPolicy;
 import com.squareup.picasso.Picasso;
+import com.squareup.picasso.RequestCreator;
+import com.squareup.picasso.UrlConnectionDownloader;
 
 import org.apache.cordova.BuildHelper;
 import org.json.JSONArray;
@@ -38,9 +41,14 @@ import org.json.JSONException;
 import org.json.JSONObject;
 
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.net.HttpURLConnection;
+import java.util.Iterator;
+
+import uk.co.senab.photoview.PhotoViewAttacher;
 
 public class PhotoActivity extends AppCompatActivity {
 	private static final int ACTION_NONE = 0;
@@ -69,9 +77,14 @@ public class PhotoActivity extends AppCompatActivity {
 	private String subTitleText;
 	private int maxWidth;
 	private int maxHeight;
+    private JSONObject headers;
+    private JSONObject picassoOptions;
+    private File tempImage;
 
 	private String applicationId;
 	private static final String TAG = "PhotoActivity";
+
+    public static JSONArray rawArgs = null;
 
 	@Override
 	protected void onCreate(Bundle savedInstanceState) {
@@ -81,26 +94,23 @@ public class PhotoActivity extends AppCompatActivity {
 
 		setContentView(getApplication().getResources().getIdentifier("photoviewer_photo", "layout", getApplication().getPackageName()));
 
-		Intent intent = this.getIntent();
-
-		imageUrl = intent.getStringExtra("url");
-		titleText = intent.getStringExtra("title");
-		subTitleText = intent.getStringExtra("subtitle");
-		maxWidth = intent.getIntExtra("maxWidth", 0);
-		maxHeight = intent.getIntExtra("maxHeight", 0);
-		String menuArray = intent.getStringExtra("menu");
-
 		try {
-			menuItems = new JSONArray(menuArray);
-		} catch (JSONException e) {
-			e.printStackTrace();
-			menuItems = new JSONArray();
-		}
+            this.imageUrl = rawArgs.getString(0);
+            this.titleText = rawArgs.getString(1);
+            this.subTitleText = rawArgs.getString(2);
+            this.maxWidth = rawArgs.getInt(3);
+            this.maxHeight = rawArgs.getInt(4);
+            this.menuItems = rawArgs.getJSONArray(5);
+            this.headers = parseHeaders(rawArgs.optString(9));
+            this.picassoOptions = rawArgs.optJSONObject(10);
 
-		// Load the Views
-		findViews();
+            // Load the Views
+            findViews();
 
-		loadImage();
+            loadImage();
+        } catch (JSONException e) {
+            e.printStackTrace();
+        }
 	}
 
 	@Override
@@ -163,7 +173,13 @@ public class PhotoActivity extends AppCompatActivity {
 	}
 
 	private void onShareAction(JSONObject menuItem) {
-		Bitmap bmp = this.getLocalBitmap(photo);
+	    Bitmap bmp = null;
+	    try {
+            File file = this.getLocalBitmapFileFromView(photo);
+            bmp = BitmapFactory.decodeStream(new FileInputStream(file), null, null);
+        } catch (FileNotFoundException e) {
+            e.printStackTrace();
+        }
 
 		if (bmp != null) {
 			File path = this.getApplicationContext().getCacheDir();
@@ -183,7 +199,13 @@ public class PhotoActivity extends AppCompatActivity {
 	}
 
 	private void onDownloadAction(JSONObject menuItem) {
-		Bitmap bmp = getLocalBitmap(photo);
+        Bitmap bmp = null;
+        try {
+            File file = this.getLocalBitmapFileFromView(photo);
+            bmp = BitmapFactory.decodeStream(new FileInputStream(file), null, null);
+        } catch (FileNotFoundException e) {
+            e.printStackTrace();
+        }
 
 		if (bmp != null) {
 			File path = Environment.getExternalStoragePublicDirectory(
@@ -213,7 +235,7 @@ public class PhotoActivity extends AppCompatActivity {
 		// ToolBar
 		toolbar = (Toolbar) findViewById( resources.getIdentifier("toolbar", "id", packageName) ); // Attaching the layout to the toolbar object
 		setSupportActionBar(toolbar);
-		getSupportActionBar().setTitle(titleText);
+		getSupportActionBar().setTitle(this.titleText);
 
 		// SubTitle
 		subTitle = (TextView) findViewById( resources.getIdentifier("subtitleView", "id", packageName) );
@@ -237,44 +259,89 @@ public class PhotoActivity extends AppCompatActivity {
 		mAttacher.update();
 	}
 
-	/**
-	 * Load the image using Picasso
-	 *
-	 */
-	private void loadImage() {
-		if( imageUrl.startsWith("http") || imageUrl.startsWith("file") ) {
-			int width = (maxWidth != 0) ? maxWidth : MAX_WIDTH;
-			int height = (maxHeight != 0) ? maxHeight : MAX_HEIGHT;
-			int size = (int) Math.ceil(Math.sqrt(width * height));
+    private RequestCreator setOptions(RequestCreator picasso) throws JSONException {
+        int width = (maxWidth != 0) ? this.maxWidth : MAX_WIDTH;
+		int height = (maxHeight != 0) ? this.maxHeight : MAX_HEIGHT;
+		int size = (int) Math.ceil(Math.sqrt(width * height));
 
-			Picasso.with(this)
-				.load(imageUrl)
-				.transform(new BitmapTransform(width, height))
-				.memoryPolicy(MemoryPolicy.NO_CACHE, MemoryPolicy.NO_STORE)
-				.resize(size, size)
-				.centerInside()
-				.into(photo, new com.squareup.picasso.Callback() {
-					@Override
-					public void onSuccess() {
-						hideLoadingAndUpdate();
-					}
+        picasso.transform(new BitmapTransform(width, height));
+        picasso.memoryPolicy(MemoryPolicy.NO_CACHE, MemoryPolicy.NO_STORE);
+		picasso.resize(size, size);
 
-					@Override
-					public void onError() {
-						Toast.makeText(getActivity(), "Error loading image.", Toast.LENGTH_LONG).show();
+        if(this.picassoOptions.has("fit") && this.picassoOptions.optBoolean("fit")) {
+            picasso.fit();
+        }
 
-						finish();
-					}
-				});
-		} else if ( imageUrl.startsWith("data:image")){
-            String base64String = imageUrl.substring(imageUrl.indexOf(",")+1);
-            byte[] decodedString = Base64.decode(base64String, Base64.DEFAULT);
-            Bitmap decodedByte = BitmapFactory.decodeByteArray(decodedString, 0, decodedString.length);
-            photo.setImageBitmap(decodedByte);
+        if(this.picassoOptions.has("centerInside") && this.picassoOptions.optBoolean("centerInside")) {
+            picasso.centerInside();
+        }
 
-            hideLoadingAndUpdate();
+        if(this.picassoOptions.has("centerCrop") && this.picassoOptions.optBoolean("centerCrop")) {
+            picasso.centerCrop();
+        }
+
+        return picasso;
+    }
+    
+    /**
+     * Load the image using Picasso
+     */
+    private void loadImage() throws JSONException {
+        if (this.imageUrl.startsWith("http") || this.imageUrl.startsWith("file")) {
+            Picasso picasso;
+            if (headers == null) {
+                picasso = Picasso.with(PhotoActivity.this);
+            } else {
+                picasso = getImageLoader(this);
+            }
+
+            this.setOptions(picasso.load(this.imageUrl))
+                .into(photo, new com.squareup.picasso.Callback() {
+                    @Override
+                    public void onSuccess() {
+                        hideLoadingAndUpdate();
+                    }
+
+                    @Override
+                    public void onError() {
+                        Toast.makeText(getActivity(), "Error loading image.", Toast.LENGTH_LONG).show();
+
+                        finish();
+                    }
+                });
+        } else if (this.imageUrl.startsWith("data:image")) {
+            new AsyncTask<Void, Void, File>() {
+                protected File doInBackground(Void... params) {
+                    String base64Image = imageUrl.substring(imageUrl.indexOf(",") + 1);
+                    return getLocalBitmapFileFromString(base64Image);
+                }
+
+                protected void onPostExecute(File file) {
+                    tempImage = file;
+                    Picasso picasso = Picasso.with(PhotoActivity.this);
+
+                    try {
+                        setOptions(picasso.load(tempImage))
+                                .into(photo, new com.squareup.picasso.Callback() {
+                                    @Override
+                                    public void onSuccess() {
+                                        hideLoadingAndUpdate();
+                                    }
+
+                                    @Override
+                                    public void onError() {
+                                        Toast.makeText(getActivity(), "Error loading image.", Toast.LENGTH_LONG).show();
+
+                                        finish();
+                                    }
+                                });
+                    } catch (JSONException e) {
+                        e.printStackTrace();
+                    }
+                }
+            }.execute();
         } else {
-            photo.setImageURI(Uri.parse(imageUrl));
+            photo.setImageURI(Uri.parse(this.imageUrl));
 
             hideLoadingAndUpdate();
         }
@@ -300,17 +367,105 @@ public class PhotoActivity extends AppCompatActivity {
 		return null;
 	}
 
-	private String getFileName() {
+    public void onDestroy() {
+        if (tempImage != null) {
+            tempImage.delete();
+        }
+        super.onDestroy();
+    }
+
+    private String getFileName() {
 		return "share_image_" + System.currentTimeMillis() + ".png";
 	}
 
-	private Bitmap getLocalBitmap(ImageView imageView) {
-		Drawable drawable = imageView.getDrawable();
+    public File getLocalBitmapFileFromString(String base64) {
+        File file;
 
-		if (drawable instanceof BitmapDrawable){
-			return ((BitmapDrawable) imageView.getDrawable()).getBitmap();
-		}
+        try {
+            file = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), this.getFileName());
+            file.getParentFile().mkdirs();
+            FileOutputStream output = new FileOutputStream(file);
+            byte[] decoded = Base64.decode(base64, Base64.DEFAULT);
+            output.write(decoded);
+            output.close();
+        } catch (IOException e) {
+            e.printStackTrace();
+            file = null;
+        }
+        return file;
+    }
 
-		return null;
-	}
+    /**
+     * Create Local Image due to Restrictions
+     *
+     * @param imageView
+     * @return
+     */
+    public File getLocalBitmapFileFromView(ImageView imageView) {
+        Drawable drawable = imageView.getDrawable();
+        Bitmap bmp;
+
+        if (drawable instanceof BitmapDrawable) {
+            bmp = ((BitmapDrawable) imageView.getDrawable()).getBitmap();
+        } else {
+            return null;
+        }
+
+        // Store image to default external storage directory
+        File file;
+
+        try {
+            file = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), this.getFileName());
+            file.getParentFile().mkdirs();
+            FileOutputStream out = new FileOutputStream(file);
+            bmp.compress(Bitmap.CompressFormat.PNG, 90, out);
+            out.close();
+
+        } catch (IOException e) {
+            file = null;
+            e.printStackTrace();
+        }
+        return file;
+    }
+
+    private JSONObject parseHeaders(String headerString) {
+        JSONObject headers = null;
+
+        // Short circuit if headers is empty
+        if (headerString == null || headerString.length() == 0) {
+            return headers;
+        }
+
+        // headers should never be a JSON array, only a JSON object
+        try {
+            headers = new JSONObject(headerString);
+        } catch (JSONException e) {
+            e.printStackTrace();
+        }
+        return headers;
+    }
+
+    private Picasso getImageLoader(Context ctx) {
+        Picasso.Builder builder = new Picasso.Builder(ctx);
+
+        builder.downloader(new UrlConnectionDownloader(ctx) {
+            @Override
+            protected HttpURLConnection openConnection(Uri uri) throws IOException {
+                HttpURLConnection connection = super.openConnection(uri);
+                Iterator<String> keyIter = headers.keys();
+                String key = null;
+                try {
+                    while (keyIter.hasNext()) {
+                        key = keyIter.next();
+                        connection.setRequestProperty(key, headers.getString(key));
+                    }
+                } catch (JSONException e) {
+                    e.printStackTrace();
+                }
+                return connection;
+            }
+        });
+
+        return builder.build();
+    }
 }

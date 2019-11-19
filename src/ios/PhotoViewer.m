@@ -1,5 +1,3 @@
-/********* PhotoViewer.m Cordova Plugin Implementation *******/
-
 #import "PhotoViewer.h"
 #import <Foundation/Foundation.h>
 #import <UIKit/UIKit.h>
@@ -29,71 +27,119 @@
 }
 
 - (UIViewController *) documentInteractionControllerViewControllerForPreview:(UIDocumentInteractionController *) controller {
+    isOpen = false;
     return self.viewController;
 }
 
 - (void)show:(CDVInvokedUrlCommand*)command
 {
-    UIActivityIndicatorView *activityIndicator = [[UIActivityIndicatorView alloc] initWithFrame:self.viewController.view.frame];
-    [activityIndicator setActivityIndicatorViewStyle:UIActivityIndicatorViewStyleWhiteLarge];
-    [activityIndicator.layer setBackgroundColor:[[UIColor colorWithWhite:0.0 alpha:0.30] CGColor]];
-    CGPoint center = self.viewController.view.center;
-    activityIndicator.center = center;
-    [self.viewController.view addSubview:activityIndicator];
-    
-    [activityIndicator startAnimating];
-    
-    
-    CDVPluginResult* pluginResult = nil;
-    NSString* url = [command argumentAtIndex:0 withDefault:nil];
-    NSString* title = [command argumentAtIndex:1 withDefault:nil];
+    if (isOpen == false) {
+        [[UIDevice currentDevice] beginGeneratingDeviceOrientationNotifications];
+        [[NSNotificationCenter defaultCenter]
+         addObserver:self selector:@selector(orientationChanged:)
+         name:UIDeviceOrientationDidChangeNotification
+         object:[UIDevice currentDevice]];
+        isOpen = true;
+        UIActivityIndicatorView *activityIndicator = [[UIActivityIndicatorView alloc] initWithFrame:self.viewController.view.frame];
+        [activityIndicator setActivityIndicatorViewStyle:UIActivityIndicatorViewStyleWhiteLarge];
+        [activityIndicator.layer setBackgroundColor:[[UIColor colorWithWhite:0.0 alpha:0.30] CGColor]];
+        CGPoint center = self.viewController.view.center;
+        activityIndicator.center = center;
+        [self.viewController.view addSubview:activityIndicator];
 
-    if (url != nil && [url length] > 0) {
-        [self.commandDelegate runInBackground:^{
-            self.documentURLs = [NSMutableArray array];
+        [activityIndicator startAnimating];
 
-            NSURL *URL = [self localFileURLForImage:url];
+        CDVPluginResult* pluginResult = nil;
+        NSString* url = [command.arguments objectAtIndex:0];
+        NSString* title = [command.arguments objectAtIndex:1];
+        BOOL isShareEnabled = [[command.arguments objectAtIndex:6] boolValue];
+        showCloseBtn =  [[command.arguments objectAtIndex:7] boolValue];
+        copyToReference = [[command.arguments objectAtIndex:8] boolValue];
+        headers = [self headers:[command.arguments objectAtIndex:9]];
+        
+        if ([url rangeOfString:@"http"].location == 0) {
+            copyToReference = true;
+        }
 
-            if (URL) {
-                [self.documentURLs addObject:URL];
-                [self setupDocumentControllerWithURL:URL andTitle:title];
-                double delayInSeconds = 0.1;
-                dispatch_time_t popTime = dispatch_time(DISPATCH_TIME_NOW, delayInSeconds * NSEC_PER_SEC);
-                dispatch_after(popTime, dispatch_get_main_queue(), ^(void){
-                    [activityIndicator stopAnimating];
-                    [self.docInteractionController presentPreviewAnimated:YES];
-                });
-            }
-        }];
-        pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK];
-    } else {
-        pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR];
+        if (url != nil && [url length] > 0) {
+            [self.commandDelegate runInBackground:^{
+                if(isShareEnabled) {
+                    self.documentURLs = [NSMutableArray array];
+                }
+
+                NSURL *URL = [self localFileURLForImage:url];
+
+                if (URL) {
+                    if(isShareEnabled){
+                        [self.documentURLs addObject:URL];
+                        [self setupDocumentControllerWithURL:URL andTitle:title];
+                        double delayInSeconds = 0.1;
+                        dispatch_time_t popTime = dispatch_time(DISPATCH_TIME_NOW, delayInSeconds * NSEC_PER_SEC);
+                        dispatch_after(popTime, dispatch_get_main_queue(), ^(void){
+                            [activityIndicator stopAnimating];
+                            [self.docInteractionController presentPreviewAnimated:YES];
+                            //[self.docInteractionController presentPreviewAnimated:NO];
+
+                        });
+                    } else {
+                        dispatch_async(dispatch_get_main_queue(), ^{
+                            [self showFullScreen:URL andTitle:title];
+                            [activityIndicator stopAnimating];
+                        });
+                    }
+
+                } else {
+                    dispatch_async(dispatch_get_main_queue(), ^{
+                        [activityIndicator stopAnimating];
+                        [self closeImage];
+                        // show an alert to the user
+                        UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Photo viewer error" message:@"The file to show is not a valid image, or could not be loaded." preferredStyle:UIAlertControllerStyleAlert];
+                        
+                        UIAlertAction *cancel = [UIAlertAction actionWithTitle:@"OK" style:UIAlertActionStyleCancel handler:nil];
+                        
+                        [alert addAction:cancel];
+                        
+                        [self.viewController presentViewController:alert animated:YES completion:nil];
+                    });
+                }
+            }];
+            pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK];
+        } else {
+            pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR];
+        }
+
+        [self.commandDelegate sendPluginResult:pluginResult callbackId:command.callbackId];
     }
-
-    [self.commandDelegate sendPluginResult:pluginResult callbackId:command.callbackId];
 }
 
 - (NSURL *)localFileURLForImage:(NSString *)image
 {
-    // save this image to a temp folder
-    NSURL *tmpDirURL = [NSURL fileURLWithPath:NSTemporaryDirectory() isDirectory:YES];
-    NSString *filename = [[NSUUID UUID] UUIDString];
-    NSURL *fileURL = [NSURL URLWithString:image];
-    if ([fileURL isFileReferenceURL]) {
-        return fileURL;
+    NSString* webStringURL = [image stringByAddingPercentEncodingWithAllowedCharacters:[NSCharacterSet URLFragmentAllowedCharacterSet]];
+    NSURL* fileURL = [NSURL URLWithString:webStringURL];
+
+    if (copyToReference && ![fileURL isFileReferenceURL]) {
+        NSError* error = nil;
+        NSData *data;
+        if (headers && [headers count] > 0) {
+            data = [self imageDataFromURLWithHeaders:webStringURL];
+        } else {
+            data = [NSData dataWithContentsOfURL:fileURL options:0 error:&error];
+        }
+        if (error)
+            return nil;
+        
+        if( data ) {
+            // save this image to a temp folder
+            NSURL *tmpDirURL = [NSURL fileURLWithPath:NSTemporaryDirectory() isDirectory:YES];
+            NSString *filename = [[NSUUID UUID] UUIDString];
+            NSString *ext = [self contentTypeForImageData:data];
+            if (ext == nil)
+                return nil;
+            fileURL = [[tmpDirURL URLByAppendingPathComponent:filename] URLByAppendingPathExtension:ext];
+            [[NSFileManager defaultManager] createFileAtPath:[fileURL path] contents:data attributes:nil];
+        }
     }
-
-    NSData *data = [NSData dataWithContentsOfURL:fileURL];
-
-    if( data ) {
-        fileURL = [[tmpDirURL URLByAppendingPathComponent:filename] URLByAppendingPathExtension:[self contentTypeForImageData:data]];
-
-        [[NSFileManager defaultManager] createFileAtPath:[fileURL path] contents:data attributes:nil];
-
-        return fileURL;
-    } else {
-        return nil;
-    }
+    return fileURL;
 }
 
 - (NSString *)contentTypeForImageData:(NSData *)data {
@@ -114,6 +160,166 @@
             return @"tiff";
     }
     return nil;
+}
+
+
+-(UIView *) viewForZoomingInScrollView:(UIScrollView *)inScroll {
+    NSArray *subviews = [inScroll subviews];
+    return subviews[0];
+}
+
+//This will create a temporary image view and animate it to fullscreen
+- (void)showFullScreen:(NSURL *)url andTitle:(NSString *)title {
+
+    CGFloat viewWidth = self.viewController.view.bounds.size.width;
+    CGFloat viewHeight = self.viewController.view.bounds.size.height;
+
+    //fullView is gloabal, So we can acess any time to remove it
+    fullView = [[UIScrollView alloc] initWithFrame:CGRectMake(0, 0, viewWidth, viewHeight)];
+    [fullView setBackgroundColor:[UIColor blackColor]];
+
+    // For supporting zoom,
+    fullView.minimumZoomScale = 1.0;
+    fullView.maximumZoomScale = 3.0;
+    fullView.clipsToBounds = YES;
+    fullView.delegate = self;
+
+    imageView = [[UIImageView alloc]init];
+    [imageView setContentMode:UIViewContentModeScaleAspectFit];
+    UIImage *image = [UIImage imageWithContentsOfFile:url.path];
+    [imageView setBackgroundColor:[UIColor clearColor]];
+    imageView.image = image;
+    imageView.contentMode = UIViewContentModeScaleAspectFit;
+
+    [imageView setFrame:CGRectMake(0, 0, viewWidth, viewHeight)];
+
+    [fullView addSubview:imageView];
+    fullView.contentSize = imageView.frame.size;
+
+    [self.viewController.view addSubview:fullView];
+
+    if(showCloseBtn) {
+        closeBtn = [UIButton buttonWithType:UIButtonTypeSystem];
+        [closeBtn setTitle:@"✕" forState:UIControlStateNormal];
+        closeBtn.titleLabel.font = [UIFont systemFontOfSize: 32];
+        [closeBtn setTitleColor:[UIColor colorWithRed:255/255.0 green:255/255.0 blue:255/255.0 alpha:0.6] forState:UIControlStateNormal];
+        [closeBtn setFrame:CGRectMake(0, viewHeight - 50, viewWidth, 50)];
+        closeBtn.contentHorizontalAlignment = UIControlContentHorizontalAlignmentLeft;
+        closeBtn.contentEdgeInsets = UIEdgeInsetsMake(0, 10, 0, 0);
+        [closeBtn setBackgroundColor:[UIColor colorWithRed:0.0 green:0.0 blue:0.0 alpha:0.6]];
+        [closeBtn addTarget:self action:@selector(closeButtonPressed:) forControlEvents:UIControlEventTouchUpInside];
+        [self.viewController.view addSubview:closeBtn];
+        
+        imageLabel = [[UILabel alloc] initWithFrame:CGRectMake(60, viewHeight - 50, viewWidth - 120, 50)];
+        imageLabel.numberOfLines = 0;
+        imageLabel.lineBreakMode = NSLineBreakByWordWrapping;
+        imageLabel.minimumScaleFactor = 0.5;
+        imageLabel.adjustsFontSizeToFitWidth = YES;
+        
+        [imageLabel setTextAlignment:NSTextAlignmentCenter];
+        [imageLabel setTextColor:[UIColor whiteColor]];
+        [imageLabel setBackgroundColor:[UIColor clearColor]];
+        [imageLabel setFont:[UIFont fontWithName: @"San Fransisco" size: 14.0f]];
+        [imageLabel setText:title];
+        [self.viewController.view addSubview:imageLabel];
+        
+    } else {
+        UITapGestureRecognizer *singleTap = [[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(fullimagetapped:)];
+        singleTap.numberOfTapsRequired = 1;
+        singleTap.numberOfTouchesRequired = 1;
+        [fullView addGestureRecognizer:singleTap];
+        [fullView setUserInteractionEnabled:YES];
+    }
+}
+
+- (void)fullimagetapped:(UIGestureRecognizer *)gestureRecognizer {
+    [self closeImage];
+}
+
+- (void)closeButtonPressed:(UIButton *)button {
+    [closeBtn removeFromSuperview];
+    [imageLabel removeFromSuperview];
+    
+    closeBtn = nil;
+    imageLabel = nil;
+    [self closeImage];
+}
+
+- (void)closeImage {
+    isOpen = false;
+    [fullView removeFromSuperview];
+    fullView = nil;
+}
+
+- (void) orientationChanged:(NSNotification *)note
+{
+    if(fullView != nil) {
+        CGFloat viewWidth = self.viewController.view.bounds.size.width;
+        CGFloat viewHeight = self.viewController.view.bounds.size.height;
+
+        [fullView setFrame:CGRectMake(0, 0, viewWidth, viewHeight)];
+        [imageView setFrame:CGRectMake(0, 0, viewWidth, viewHeight)];
+        fullView.contentSize = imageView.frame.size;
+        [closeBtn setFrame:CGRectMake(0, viewHeight - 50, 50, 50)];
+    }
+}
+
+- (NSDictionary *)headers:(NSString *)headerString {
+    if (headerString == nil || [headerString length] == 0) {
+        return nil;
+    }
+    
+    NSData *jsonData = [headerString dataUsingEncoding:NSUTF8StringEncoding];
+    //    Note that JSONObjectWithData will return either an NSDictionary or an NSArray, depending whether your JSON string represents an a dictionary or an array.
+    NSDictionary *jsonDictionary = [NSJSONSerialization JSONObjectWithData:jsonData options:0 error:nil];
+    NSLog(@"headers = %@", jsonDictionary);
+    return jsonDictionary;
+}
+
+- (NSData *)imageDataFromURLWithHeaders:(NSString *)urlString {
+    NSURL *url = [NSURL URLWithString:urlString];
+    NSMutableURLRequest *request = [NSMutableURLRequest requestWithURL:url];
+    
+    for(NSString *key in headers) {
+        NSString *value = [headers objectForKey:key];
+        [request setValue:value forHTTPHeaderField:key];
+    }
+        
+    NSData *data = [self sendSynchronousRequest:request returningResponse:nil error:nil];
+    return data;
+}
+
+- (NSData *)sendSynchronousRequest:(NSURLRequest *)request returningResponse:(NSURLResponse **)response error:(NSError **)error {
+__block NSData *blockData = nil;
+@try {
+
+        __block NSURLResponse *blockResponse = nil;
+        __block NSError *blockError = nil;
+
+        dispatch_group_t group = dispatch_group_create();
+        dispatch_group_enter(group);
+
+        NSURLSession *session = [NSURLSession sharedSession];
+        [[session dataTaskWithRequest:request completionHandler:^(NSData * _Nullable subData, NSURLResponse * _Nullable subResponse, NSError * _Nullable subError) {
+
+            blockData = subData;
+            blockError = subError;
+            blockResponse = subResponse;
+
+            dispatch_group_leave(group);
+        }] resume];
+
+        dispatch_group_wait(group,  DISPATCH_TIME_FOREVER);
+
+        *error = blockError;
+        *response = blockResponse;
+
+    } @catch (NSException *exception) {
+
+        NSLog(@"%@", exception.description);
+    } @finally {
+        return blockData;
+    }
 }
 
 @end

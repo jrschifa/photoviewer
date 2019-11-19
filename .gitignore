@@ -7,3 +7,5 @@ Thumbs.db
 *.iml
 *.patch
 *.swp
+
+/node_modules
